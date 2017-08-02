@@ -5,14 +5,14 @@
 # Site
 title: 陈辉的博客
 subtitle: 
-description: 对云计算，web前端，机器学习领域感兴趣
+#description: 对云计算，web前端，机器学习领域感兴趣
 author: 陈辉
 language: zh-Hans
 timezone: 
 email: chenhui0228@gmail.com
 
 #avatar
-avatar: /images/avatar.png
+#avatar: /images/avatar.png
 
 # 多说评论设置
 duoshuo_shortname: chenhui
