@@ -1,9 +1,10 @@
 ---
-title: CEPH 运维之安装部署
+title: CEPH运维之安装部署（luminous）
 date: 2017-08-01 14:09:41
 categories:
 - 分布式存储
 - 运维操作
+- Ceph
 tags: 
 - ceph
 - 分布式存储
@@ -18,7 +19,7 @@ tags:
 | hostname | public ip | cluster ip | 节点说明 |
 | :----- | :----- | :----- | :----- |
 | ch-osd-1 | 172.16.30.73 | 172.16.31.73 | osd节点 |
-| ch-osd-2 | 172.16.30.74 | 172.16.31.74 | osd节点 |
+| ch-osd-2 | 172.16.30.72 | 172.16.31.72 | osd节点 |
 | ch-osd-3 | 172.16.30.75 | 172.16.31.75 | osd节点 |
 | ch-osd-4 | 172.16.30.77 | 172.16.31.77 | osd节点 |
 | ch-mon-1 | 172.16.30.78 | 172.16.31.78 | mon+rgw+manger节点 |
@@ -32,8 +33,8 @@ tags:
 - 网络配置：public 网络和 cluster 均为万兆光纤
 - 每台服务器第1，2块磁盘做RAID1；其余磁盘做RAID0
 - ch-mon-1节点作为管理节点，部署ceph-deploy
-- Ceph版本：12.1.0
-- ceph-deploy版本：1.5.36
+- Ceph版本：目前最新版 v12.1.2
+- ceph-deploy版本：1.5.38
 - 这里使用root用户安装，如果不是root用户，应该拥有root权限
 
 ### 环境准备 ###
@@ -67,15 +68,15 @@ OSD数据盘做RAID0 ，并分别设置读、写、缓存策略，其中读策�
     /opt/MegaRAID/MegaCli64 -LDSetProp 10 RA -a0
     /opt/MegaRAID/MegaCli64 -LDSetProp 10 RA -a0
 
-
 SSD做日志盘做RAID0，读策略为Normal，不适用预读，写策略为Write Through直接写入磁盘；如果SSD有掉电保护，磁盘缓存Disk cache设置为Enable；I/O策略为Direct请求不被Cache缓存。
 
     /opt/MegaRAID/MegaCli64 -cfgldadd -r0 [32:13] WT NORA Direct -a0
 
-
 Megacli更详细的使用，可以参考其他资料，如[参考文档1](https://supportforums.cisco.com/document/62901/megacli-common-commands-and-procedures)等
 
 #### 基础环境配置 ####
+
+##### yum源配置 #####
 
 这里采用yum安装，我已经将CEPH二进制RPM包上传至YUM镜像，所以先配置CEPH可用的YUM源，包括CEPH本身和EPEL源，如下：
 
@@ -97,17 +98,202 @@ Megacli更详细的使用，可以参考其他资料，如[参考文档1](https:
 
 > **提示**：如果你没有自己的YUM源可使用国内开源镜像，如[清华镜像](https://mirrors.tuna.tsinghua.edu.cn/)，[中科大镜像](http://mirrors.ustc.edu.cn/)，[阿里镜像](https://mirrors.aliyun.com/)等，也可以使用[Ceph官方文档](http://docs.ceph.com/docs/master/start/quick-start-preflight/#rhel-centos)给出的配置。
 
+##### SSH互信 #####
+
+需要为管理节点和其他集群节点建立ssh互信，使管理节点可以免验证登录其他各节点
+
+在管理节点生成ssh keys，命令如下：
+
+    ssh-keygen
+
+将管理节点的ssh key 拷贝到其它个节点：
+
+    ssh-copy-id root@172.16.30.xxx
+
 ### 集群部署 ###
 
 #### 软件包安装 ####
 
 在管理节点安装ceph-deploy
 
+    yum install ceph-deploy -y
+
+安装Ceph，在各个节点执行命令
+
+    yum install ceph -y
+
+安装完后可以使用如下命令查看版本
+
+    [root@ch-mon-1 ~]# ceph -v
+    ceph version 12.1.2 (b661348f156f148d764b998b65b90451f096cb27) luminous (rc)
+
+同时，可以看到在/etc目录下新增了一个ceph目录。进入/etc/ceph目录
+
+    cd /etc/ceph
+
+#### 创建集群 ####
 
 
+##### 初始化集群 #####
 
+准备3个Monitor节点
+
+	ceph-deploy new ch-mon-1 ch-mon-2 ch-mon-3
+
+执行完毕后再该目录下可以看到有如下文件
+
+	[root@ch-mon-1 ceph]# pwd
+	/etc/ceph
+	[root@ch-mon-1 ceph]# ll
+	-rw-r--r-- 1 root root   805 Aug  3 13:44 ceph.conf
+	-rw-r--r-- 1 root root 33736 Aug  3 13:45 ceph-deploy-ceph.log
+	-rw------- 1 root root    73 Aug  3 13:43 ceph.mon.keyring
+
+此时可以开始规划集群配置，如集群网络配置，我这里的配置如下：
+
+默认配置
+
+    [root@ch-mon-1 ceph]# cat ceph.conf 
+    [global]
+    fsid = 31fc3bef-d912-4d12-aa1e-130d3270d5db
+    mon_initial_members = ch-mon-1, ch-mon-2, ch-mon-3
+    mon_host = 172.16.30.78,172.16.30.79,172.16.30.80
+    auth_cluster_required = cephx
+    auth_service_required = cephx
+    auth_client_required = cephx
+
+修改后
+
+    [root@ch-mon-1 ceph]# cat ceph.conf 
+    [global]
+    fsid = 31fc3bef-d912-4d12-aa1e-130d3270d5db
+    mon_initial_members = ch-mon-1, ch-mon-2, ch-mon-3
+    mon_host = 172.16.30.78,172.16.30.79,172.16.30.80
+    auth_cluster_required = cephx
+    auth_service_required = cephx
+    auth_client_required = cephx
+    
+    public_network = 172.16.30.0/24
+    cluster_network = 172.16.31.0/24
+    osd_pool_default_size = 3
+    osd_pool_default_min_size = 1
+    osd_pool_default_pg_num = 8
+    osd_pool_default_pgp_num = 8
+    osd_crush_chooseleaf_type = 1
+    
+    [mon]
+    mon_clock_drift_allowed = 0.5
+    
+    [osd]
+    osd_mkfs_type = xfs
+    osd_mkfs_options_xfs = -f
+    filestore_max_sync_interval = 5
+    filestore_min_sync_interval = 0.1
+    filestore_fd_cache_size = 655350
+    filestore_omap_header_cache_size = 655350
+    filestore_fd_cache_random = true
+    osd op threads = 8
+    osd disk threads = 4
+    filestore op threads = 8
+    max_open_files = 655350
+
+##### 初始化Monitor #####
+
+部署初始的monitors，并获得keys
+
+    ceph-deploy mon create-initial
+
+做完这一步，在当前目录下就会看到有如下的keyrings：
+
+	[root@ch-mon-1 ceph]# ll
+	-rw------- 1 root root    71 Aug  3 13:45 ceph.bootstrap-mds.keyring
+	-rw------- 1 root root    71 Aug  3 13:45 ceph.bootstrap-mgr.keyring
+	-rw------- 1 root root    71 Aug  3 13:45 ceph.bootstrap-osd.keyring
+	-rw------- 1 root root    71 Aug  3 13:45 ceph.bootstrap-rgw.keyring
+	-rw------- 1 root root    63 Aug  3 13:45 ceph.client.admin.keyring
+
+要在节点使用ceph命令行需要将ceph.client.admin.keyring放在需要的节点的/etc/ceph目录下。如这里希望在所有的节点使用命令行，可以通过如下命令将ceph.client.admin.keyring拷贝到各节点，当然也可以使用cp命令。
+
+    ceph-deploy admin ch-mon-2 ch-mon-3 ch-osd-1 ch-osd-2 ch-osd-3 ch-osd-4
+
+在L版本的Ceph中新增了manager daemon，如下命令部署一个Manager守护进程
+
+    ceph-deploy mgr create ch-mon-1
+
+##### 增加OSDs #####
+
+我们使用的版本后端存储默认使用bluestore
+
+下面我们添加OSDs
+
+    ceph-deploy osd create ch-osd-1:/dev/sdb ch-osd-1:/dev/sdc ch-osd-1:/dev/sdd ch-osd-2:/dev/sdb ch-osd-2:/dev/sdc ch-osd-2:/dev/sdd ch-osd-3:/dev/sdb ch-osd-3:/dev/sdc ch-osd-3:/dev/sdd ch-osd-4:/dev/sdb ch-osd-4:/dev/sdc ch-osd-4:/dev/sdd
+
+> **提示**：在早期的版本中，添加OSD分为prepare和activate两步，这里不详述
+
+等命令执行结束之后可以查看集群状态
+
+	[root@ch-osd-1 ~]# ceph -s
+	  cluster:
+	    id:     31fc3bef-d912-4d12-aa1e-130d3270d5db
+	    health: HEALTH_WARN
+	            application not enabled on 1 pool(s)
+	            too few PGs per OSD (1 < min 30)
+	 
+	  services:
+	    mon: 3 daemons, quorum ch-mon-1,ch-mon-2,ch-mon-3
+	    mgr: ch-mon-1(active)
+	    osd: 12 osds: 12 up, 12 in
+	 
+	  data:
+	    pools:   1 pools, 16 pgs
+	    objects: 1 objects, 499 bytes
+	    usage:   12742 MB used, 13386 GB / 13398 GB avail
+	    pgs:     16 active+clean
+ 
+查看OSDs
+
+	[root@ch-osd-1 ~]# ceph osd tree
+	ID CLASS WEIGHT   TYPE NAME         STATUS REWEIGHT PRI-AFF 
+	-1       13.08472 root default                              
+	-3        3.27118     host ch-osd-1                         
+	 0   hdd  1.09039         osd.0         up  1.00000 1.00000 
+	 1   hdd  1.09039         osd.1         up  1.00000 1.00000 
+	 2   hdd  1.09039         osd.2         up  1.00000 1.00000 
+	-5        3.27118     host ch-osd-2                         
+	 3   hdd  1.09039         osd.3         up  1.00000 1.00000 
+	 4   hdd  1.09039         osd.4         up  1.00000 1.00000 
+	 5   hdd  1.09039         osd.5         up  1.00000 1.00000 
+	-7        3.27118     host ch-osd-3                         
+	 6   hdd  1.09039         osd.6         up  1.00000 1.00000 
+	 7   hdd  1.09039         osd.7         up  1.00000 1.00000 
+	 8   hdd  1.09039         osd.8         up  1.00000 1.00000 
+	-9        3.27118     host ch-osd-4                         
+	 9   hdd  1.09039         osd.9         up  1.00000 1.00000 
+	10   hdd  1.09039         osd.10        up  1.00000 1.00000 
+	11   hdd  1.09039         osd.11        up  1.00000 1.00000 
+
+至此，整个集群就搭建完毕。
+
+通过对目前最新版本Ceph部署，可见比老版本比如生产上大量使用的Hammer版部署起来简单，当然这里没有太多的配置优化。
 
 ### 常用运维 ###
+
+##### 开启监控模块 #####
+
+在配置文件/etc/ceph/ceph.conf中添加
+
+    [mgr]
+    mgr modules = dashboard
+
+设置dashboard的ip和端口
+
+    ceph config-key put mgr/dashboard/server_addr 172.16.30.78
+    ceph config-key put mgr/dashboard/server_port 7000
+
+重启mgr服务
+
+	[root@ch-osd-1 ~]# systemctl restart ceph-mgr@ch-mon-1
+
 
 #### 增加/删除 MONITORs ####
 
@@ -189,5 +375,6 @@ Megacli更详细的使用，可以参考其他资料，如[参考文档1](https:
 
 
 **原创申明**：本文为博主原创，转载请注明出处！	
+
 
 
