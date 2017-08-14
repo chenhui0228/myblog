@@ -1,5 +1,18 @@
 ---
-title: linux-ops
+title: linux常用操作总结
 date: 2017-08-01 14:17:19
-tags:
+categories:
+- linux
+tags: 
+- linux
 ---
+
+----------
+
+**原创申明**：本文为博主原创，转载请注明出处！
+
+----------
+
+#### 查看当前文件夹大小 ####
+
+    du -sh *

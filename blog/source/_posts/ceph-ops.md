@@ -10,6 +10,12 @@ tags:
 - 分布式存储
 ---
 
+----------
+
+**原创申明**：本文为博主原创，转载请注明出处！	
+
+----------
+
 这篇文档主要介绍ceph的搭建过程。
 
 ### 集群规划 ###
@@ -232,12 +238,10 @@ Megacli更详细的使用，可以参考其他资料，如[参考文档1](https:
 
 等命令执行结束之后可以查看集群状态
 
-	[root@ch-osd-1 ~]# ceph -s
+	[root@ch-mon-1 ~]# ceph -s
 	  cluster:
 	    id:     31fc3bef-d912-4d12-aa1e-130d3270d5db
-	    health: HEALTH_WARN
-	            application not enabled on 1 pool(s)
-	            too few PGs per OSD (1 < min 30)
+	    health: HEALTH_OK
 	 
 	  services:
 	    mon: 3 daemons, quorum ch-mon-1,ch-mon-2,ch-mon-3
@@ -245,10 +249,10 @@ Megacli更详细的使用，可以参考其他资料，如[参考文档1](https:
 	    osd: 12 osds: 12 up, 12 in
 	 
 	  data:
-	    pools:   1 pools, 16 pgs
-	    objects: 1 objects, 499 bytes
+	    pools:   0 pools, 0 pgs
+	    objects: 0 objects, 0 bytes
 	    usage:   12742 MB used, 13386 GB / 13398 GB avail
-	    pgs:     16 active+clean
+	    pgs:
  
 查看OSDs
 
@@ -278,12 +282,16 @@ Megacli更详细的使用，可以参考其他资料，如[参考文档1](https:
 
 ### 常用运维 ###
 
-##### 开启监控模块 #####
+#### 开启监控模块 ####
 
 在配置文件/etc/ceph/ceph.conf中添加
 
     [mgr]
     mgr modules = dashboard
+
+或者
+
+    ceph mgr module enable dashboard
 
 设置dashboard的ip和端口
 
@@ -350,11 +358,11 @@ Megacli更详细的使用，可以参考其他资料，如[参考文档1](https:
 
 或者
 
-	service ceph stop osd.2
-
-或者
-
 	kill -9 {pid}
+
+在早期的版本中使用如下命令
+
+	service ceph stop osd.2
 
 最后需要将OSD从集群的CRUSH MAP中删除，同时删除其权限，并且从OSD MAP删除OSD，在**管理节点**执行命令：
 
@@ -373,8 +381,10 @@ Megacli更详细的使用，可以参考其他资料，如[参考文档1](https:
 
 更详细的使用方法见[官方文档](http://docs.ceph.com/docs/master/rados/operations/add-or-rm-osds/#removing-osds-manual)
 
+#### 配置推送 ####
 
-**原创申明**：本文为博主原创，转载请注明出处！	
+我们无需再每台服务器上修改ceph.conf文件中的配置信息，只需要在管理节点修改一份，然后推送到需要更行的节点上即可，如这里我们修改了ch-mon-1上/etc/ceph/ceph.conf内容，需要同时在ch-mon-2, ch-mon-3生效
 
+    ceph-deploy --overwrite-conf config push ch-mon-2 ch-mon-3
 
 
