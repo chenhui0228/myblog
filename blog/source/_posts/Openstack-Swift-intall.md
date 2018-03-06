@@ -22,22 +22,9 @@ date: 2018-01-19 15:00:55
 
 	这里只使用了一台服务器，既作为Controller Node，也作为Storage Node
 	
-	<table>
-		<tr>
-			<th width="20%">主机名</th>
-			<th width="20%">IP</th>
-			<th width="20%">OS</th>
-			<th width="20%">磁盘</th>
-			<th width="20%">文件系统</th>
-		</tr>
-		<tr>
-			<td width="20%">sf-dev</td>
-			<td width="20%">10.202.127.4</td>
-			<td width="20%">Centos-7.4</td>
-			<td width="20%">/dev/sdb<br/> /dev/sdc<br/> /dev/sdd</td>
-			<td width="20%">XFS</td>
-		</tr>
-	</table>
+| 主机名 | IP | OS | 磁盘 | 文件系统 |
+| ----- | ----- | ----- | ----- | ----- |
+| sf-dev | 10.202.127.4 | Centos-7.4 | /dev/sdb<br>/dev/sdc<br>/dev/sdd | XFS |
 
 - 软件
 
